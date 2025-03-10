@@ -1,7 +1,7 @@
 .model small
 .stack 100h
 .data
-    array dw 10 dup(?) ; array of 10 words (16-bit)
+    array dw 10 dup(?) 
 .code
 main proc
     mov ax, @data
@@ -35,7 +35,7 @@ fib_loop:
     add di, 2          
     loop fib_loop
 
-    ; Exit program
+    
     mov ah, 4Ch
     int 21h
 main endp
