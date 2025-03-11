@@ -35,9 +35,12 @@ my_function proc
 skip_compare:
     pop cx               
     pop bx               
-    pop ax               
-
-    ret                  
+    pop ax    
+    
+               
+    mov ah, 4Ch 
+    ret   
+                   
 my_function endp
 
 end main

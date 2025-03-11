@@ -1,35 +1,45 @@
 .model small
 .stack 100h
 .data
+    num1 dw 5678h
+    num2 dw 1234h
+    result dw ?
+
 .code
 
 main proc
     mov ax, @data       
     mov ds, ax
 
-    ; Push parameters onto the stack
-    push 1234h           ; second parameter
-    push 5678h           ; first parameter
-    call my_function
+    push num2  
+    push num1  
 
-    ; Caller cleans up the stack
-    add sp, 4            ; remove 2 parameters (2 bytes each)
+    call my_function  
+    
+    add sp, 4  
 
+    mov result, ax  
+
+    mov ah, 4Ch
+    int 21h
 main endp
 
 my_function proc
-    ; Function accesses parameters from the stack
-    pop bx               ; get second parameter (1234h)
-    pop ax               ; get first parameter (5678h)
+    push bp
+    mov bp, sp  
 
-    ; Compare the two parameters
+    mov ax, [bp+4]  
+    mov bx, [bp+6]  
+
     cmp ax, bx
     jbe skip_compare
     mov ax, bx
 
 skip_compare:
-    ret                  ; Return to the caller
+    pop bp
+    ret
 
+    mov ah, 4Ch 
 my_function endp
 
 end main
