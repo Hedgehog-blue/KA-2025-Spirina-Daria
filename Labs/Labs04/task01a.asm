@@ -13,7 +13,8 @@ main proc
     mov cx, 10         
 fill_loop:
     mov al, value      
-    mov [si], al       
+    mov [si], al    
+    add si, 2   
     inc si           
     dec value         
     loop fill_loop     
