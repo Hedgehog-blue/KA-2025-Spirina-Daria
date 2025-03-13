@@ -39,7 +39,6 @@ skip_compare:
     pop bp
     ret
 
-    mov ah, 4Ch 
 my_function endp
 
 end main

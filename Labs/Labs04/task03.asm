@@ -3,8 +3,6 @@
 .data
 .code
 main    proc
-    mov ax, @data
-    mov ds, ax
 
     ; Example num to check if code works 
     mov ax, 5678h    
@@ -16,13 +14,13 @@ main    proc
 
     
     pop ax           
-    pop bx           
+    pop bx  
+    add ax,bx   
 
-    cmp ax, bx      
-    jbe skip       
-    mov ax, bx      
-    mov bx, 0       
-skip:
+    push ax 
+    pop ax     
+
+          
     mov ah, 4Ch     
     int 21h
 main endp
