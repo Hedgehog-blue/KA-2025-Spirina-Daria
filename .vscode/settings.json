@@ -1,0 +1,5 @@
+{
+    "masmtasm.ASM.emulator": "dosbox-x",
+    "masmtasm.ASM.mode": "workspace",
+    "masmtasm.dosbox.run": "keep"
+}
