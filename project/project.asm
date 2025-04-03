@@ -45,3 +45,45 @@ main proc
     mov cx, mainLen1
     call CountOccurrences
     mov occurrences1, ax
+
+    ; Find occurrences in second string
+    lea si, mainStr2
+    mov cx, mainLen2
+    call CountOccurrences
+    mov occurrences2, ax
+    
+    ; Calculate total occurrences
+    mov ax, occurrences1
+    add ax, occurrences2
+    mov totalOccur, ax
+    
+    ; Display results
+    mov ah, 9
+    lea dx, newline
+    int 21h
+    lea dx, resultMsg1
+    int 21h
+    
+    mov ax, occurrences1
+    call PrintDecimal
+    
+    mov ah, 9
+    lea dx, newline
+    int 21h
+    lea dx, resultMsg2
+    int 21h
+    
+    mov ax, occurrences2
+    call PrintDecimal
+    
+    mov ah, 9
+    lea dx, newline
+    int 21h
+    lea dx, resultTotal
+    int 21h
+    
+    mov ax, totalOccur
+    call PrintDecimal
+    
+    jmp program_exit
+    
