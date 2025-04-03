@@ -1,21 +1,16 @@
 .MODEL SMALL
 .STACK 100h
 .DATA
-    ; Buffers for input
-    inputBuffer    DB 255 DUP(0)  ; Buffer for combined input
-    substring      DB 255 DUP(0)  ; Buffer for substring
-    mainstring     DB 255 DUP(0)  ; Buffer for main string
-    substring_len  DB 0           ; Length of substring
-    mainstring_len DW 0           ; Length of main string
+    substring       DB 'aa', 0     ; Hardcoded substring
+    substring_len   DB 2           ; Length of substring
+    
+    ; Buffer for reading from file
+    buffer          DB 255 DUP(0)  ; Buffer for the main string
+    buffer_size     DW 255         ; Maximum buffer size
+    bytes_read      DW 0           ; Number of bytes read
     
     ; Results
-    res_count      DB 0           ; Number of occurrences
-    
-    ; Prompts and messages
-    prompt_input   DB 'Enter substring and mainstring (separated by space): $'
-    result_msg     DB 'Number of occurrences: $'
-    newline        DB 13, 10, '$'
-    space          DB ' $'
+    res_counts      DB 0           ; Result: number of occurrences
 
 .CODE
 start:
@@ -23,174 +18,72 @@ start:
     mov ds, ax
     mov es, ax
     
-    ; Prompt for input
-    mov ah, 09h
-    lea dx, prompt_input
+    ; Read from standard input (file redirected with < test.in)
+    mov ah, 3Fh              ; DOS function: Read from file
+    mov bx, 0                ; BX = 0 (stdin)
+    lea dx, buffer           ; DS:DX points to buffer
+    mov cx, buffer_size      ; CX = max bytes to read
     int 21h
+    mov bytes_read, ax       ; Save number of bytes read
     
-    ; Read combined input from stdin
-    lea dx, inputBuffer
-    call read_string
-    
-    ; Parse the input to separate substring and mainstring
-    lea si, inputBuffer
-    lea di, substring
-    call parse_input
-    
-    ; Process the main string
-    lea si, mainstring
+    ; Process the string from buffer
+    lea si, buffer
     call count_occurrences
-    mov res_count, al
+    mov res_counts, al
     
-    ; Print newline
-    mov ah, 09h
-    lea dx, newline
+    ; Print just the number of occurrences
+    xor ax, ax
+    mov al, res_counts
+    call print_num
+    
+    ; Print a new line
+    mov ah, 02h              ; DOS function: Print character
+    mov dl, 13               ; Carriage return
+    int 21h
+    mov dl, 10               ; Line feed
     int 21h
     
-    ; Display results
-    call print_results
-    
-    ; Exit program
+    ; Exit
     mov ah, 4Ch
     int 21h
 
-; --- read_string ---
-; Reads a string from stdin into buffer pointed by DX
-; Returns: AX = string length
-read_string:
-    push bx
-    push cx
-    push dx
-    push si
-    
-    mov si, dx          ; SI = buffer pointer
-    xor cx, cx          ; CX = character count
-    
-read_loop:
-    mov ah, 01h         ; DOS input character function
-    int 21h
-    
-    cmp al, 13          ; Check for Enter key (CR)
-    je end_read
-    
-    mov [si], al        ; Store character in buffer
-    inc si              ; Move to next buffer position
-    inc cx              ; Increment character count
-    
-    cmp cx, 254         ; Check buffer limit
-    jl read_loop
-    
-end_read:
-    mov byte ptr [si], 0    ; Null-terminate the string
-    mov ax, cx          ; Return length in AX
-    
-    pop si
-    pop dx
-    pop cx
-    pop bx
-    ret
-
-; --- parse_input ---
-; Parses inputBuffer to extract substring and mainstring
-; SI = source buffer, DI = destination for substring
-parse_input:
-    push ax
-    push bx
-    push cx
-    push dx
-    
-    ; First copy substring until space
-    xor cx, cx          ; CX = substring length
-copy_substring:
-    mov al, [si]
-    
-    ; Check for space or end of string
-    cmp al, ' '
-    je end_substring
-    cmp al, 0
-    je end_parse
-    
-    ; Copy character to substring buffer
-    mov [di], al
-    inc si
-    inc di
-    inc cx
-    jmp copy_substring
-    
-end_substring:
-    ; Store substring length
-    mov substring_len, cl
-    
-    ; Null-terminate substring
-    mov byte ptr [di], 0
-    
-    ; Skip the space
-    inc si
-    
-    ; Now copy mainstring to its buffer
-    lea di, mainstring
-    xor cx, cx          ; CX = mainstring length
-    
-copy_mainstring:
-    mov al, [si]
-    
-    ; Check for end of string
-    cmp al, 0
-    je end_mainstring
-    
-    ; Copy character to mainstring buffer
-    mov [di], al
-    inc si
-    inc di
-    inc cx
-    jmp copy_mainstring
-    
-end_mainstring:
-    ; Store mainstring length
-    mov mainstring_len, cx
-    
-    ; Null-terminate mainstring
-    mov byte ptr [di], 0
-    
-end_parse:
-    pop dx
-    pop cx
-    pop bx
-    pop ax
-    ret
-
 ; --- count_occurrences ---
+; Input: SI = pointer to string
+; Output: AL = number of occurrences
 count_occurrences:
     push si
     push di
     push cx
     push bx
     
-    xor ax, ax                ; AX = occurrence count (result)
-    mov bx, si                ; BX = start of string
+    xor ax, ax                ; AX = count of occurrences (result)
+    mov bx, si                ; BX = start of the string
     
 next_pos:
-    mov si, bx
-    lea di, substring
-    mov cl, substring_len
-    jcxz end_count            ; If substring is empty
+    mov si, bx                ; SI = current position
+    lea di, substring         ; DI = start of substring
+    mov cl, substring_len     ; CL = substring length
+    jcxz end_count            ; If substring is empty, finish
     
 compare_loop:
-    mov dl, [si]
+    mov dl, [si]              ; Get character from main string
     cmp dl, 0                 ; Check for end of string
     je end_count
+    cmp dl, 13                ; Check for carriage return
+    je end_count
     
-    cmpsb
-    jne no_match
-    loop compare_loop
+    cmpsb                     ; Compare bytes at DS:SI and ES:DI, increment both
+    jne no_match              ; If not equal, no match
+    loop compare_loop         ; Continue comparing
     
     ; If all characters matched
     inc ax                    ; Increment counter
-    mov bx, si                ; Move by substring length
+    dec si                    ; Adjust SI (because cmpsb incremented it)
+    mov bx, si                ; Move to next position
     jmp next_pos
     
 no_match:
-    inc bx                    ; Move by 1 character
+    inc bx                    ; Move to next character
     jmp next_pos
     
 end_count:
@@ -200,59 +93,31 @@ end_count:
     pop si
     ret
 
-; --- print_results ---
-print_results:
-    push ax
-    push bx
-    push cx
-    push dx
-    
-    ; Print result message
-    mov ah, 09h
-    lea dx, result_msg
-    int 21h
-    
-    ; Print occurrence count
-    xor ax, ax
-    mov al, res_count
-    call print_num
-    
-    ; Print newline
-    mov ah, 09h
-    lea dx, newline
-    int 21h
-    
-    pop dx
-    pop cx
-    pop bx
-    pop ax
-    ret
-
 ; --- print_num ---
+; Input: AX = number to print
 print_num:
     push ax
     push bx
     push cx
     push dx
     
-    xor cx, cx
-    mov bl, 10
+    xor cx, cx                ; CX = digit counter
+    mov bx, 10                ; BX = divisor
     
 print_loop1:
-    xor ah, ah
-    div bl
-    push ax
-    inc cx
-    cmp al, 0
-    jne print_loop1
+    xor dx, dx                ; Clear DX for division
+    div bx                    ; DX:AX / BX, quotient in AX, remainder in DX
+    push dx                   ; Save remainder (digit)
+    inc cx                    ; Increment digit counter
+    test ax, ax               ; Check if quotient is 0
+    jnz print_loop1           ; If not, continue
     
 print_loop2:
-    pop dx
-    mov dl, dh
-    add dl, '0'
-    mov ah, 02h
-    int 21h
-    loop print_loop2
+    pop dx                    ; Get digit
+    add dl, '0'               ; Convert to ASCII
+    mov ah, 02h               ; DOS function: Print character
+    int 21h                   ; Output the digit
+    loop print_loop2          ; Repeat for all digits
     
     pop dx
     pop cx
