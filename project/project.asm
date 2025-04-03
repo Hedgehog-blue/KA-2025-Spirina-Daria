@@ -87,3 +87,48 @@ main proc
     
     jmp program_exit
     
+    error_exit:
+    mov ah, 9
+    lea dx, newline
+    int 21h
+    lea dx, errorMsg
+    int 21h
+    
+program_exit:
+    ; Exit program
+    mov ah, 4Ch
+    int 21h
+main endp
+
+; Procedure to read input from stdin
+ReadInput proc
+    push bx
+    push cx
+    push si
+    
+    lea si, inputBuffer      ; SI points to input buffer
+    xor cx, cx               ; CX will count characters
+    
+read_loop:
+    ; Read a character
+    mov ah, 1
+    int 21h
+    
+    ; Check for Enter key (CR, 13)
+    cmp al, 13
+    je done_reading
+    
+    ; Store character in buffer
+    mov [si], al
+    inc si
+    inc cx
+    jmp read_loop
+    
+done_reading:
+    mov byte ptr [si], 0     ; Add null terminator
+    
+    pop si
+    pop cx
+    pop bx
+    ret
+ReadInput endp
