@@ -24,7 +24,7 @@
 
 .code 
 main proc 
-mov ax, @data
+    mov ax, @data
     mov ds, ax
     
     ; Display prompt for input
