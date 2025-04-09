@@ -11,6 +11,9 @@
     
     ; Results
     buffer_pos      DW 0           ; Result: number of occurrences
+    line_number     DW 0 
+
+    space           DB " ", 0 
 
 .CODE
 start:
@@ -28,6 +31,7 @@ start:
     
     ; Initialize buffer position
     mov buffer_pos, 0
+    mov line_number, 0
     
     ; Process each line in the buffer
 process_next_line:
@@ -66,6 +70,16 @@ found_eol:
     
     ; Print the result
     call print_num
+
+    ; Print a space
+    mov ah, 02h
+    mov dl, ' '              ; Space character
+    int 21h
+    
+    ; Print the line number
+    mov ax, line_number
+    call print_num
+    
     
     ; Print a new line after each count
     mov ah, 02h
@@ -74,6 +88,9 @@ found_eol:
     mov dl, 10               ; LF
     int 21h
     
+    inc line_number 
+
+
     ; Update buffer position (skip CR/LF if present)
     inc bx                   ; Skip the null we just added
     mov buffer_pos, bx
