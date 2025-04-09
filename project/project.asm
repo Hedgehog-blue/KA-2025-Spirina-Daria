@@ -10,7 +10,7 @@
     bytes_read      DW 0           ; Number of bytes read
     
     ; Results
-    res_counts      DB 0           ; Result: number of occurrences
+    buffer_pos      DW 0           ; Result: number of occurrences
 
 .CODE
 start:
@@ -26,23 +26,81 @@ start:
     int 21h
     mov bytes_read, ax       ; Save number of bytes read
     
-    ; Process the string from buffer
-    lea si, buffer
-    call count_occurrences
-    mov res_counts, al
+    ; Initialize buffer position
+    mov buffer_pos, 0
     
-    ; Print just the number of occurrences
-    xor ax, ax
-    mov al, res_counts
+    ; Process each line in the buffer
+process_next_line:
+    ; Check if we've processed the entire buffer
+    mov bx, buffer_pos
+    cmp bx, bytes_read
+    jae exit_program
+    
+    ; Find the start of current line
+    lea si, buffer
+    add si, bx               ; SI points to start of current line
+    
+    ; Save the starting position
+    mov di, si               ; DI = start of current line
+    
+    ; Find the end of line (look for CR, LF, or null)
+find_eol:
+    mov al, [si]
+    cmp al, 0                ; Check for null terminator
+    je found_eol
+    cmp al, 13               ; Check for CR
+    je found_eol
+    cmp al, 10               ; Check for LF
+    je found_eol
+    inc si
+    inc bx                   ; Increment buffer position
+    jmp find_eol
+    
+found_eol:
+    ; Mark end of line with null terminator
+    mov byte ptr [si], 0
+    
+    ; Process this line
+    mov si, di               ; SI = start of line
+    call count_occurrences
+    
+    ; Print the result
     call print_num
     
-    ; Print a new line
-    mov ah, 02h              ; DOS function: Print character
-    mov dl, 13               ; Carriage return
+    ; Print a new line after each count
+    mov ah, 02h
+    mov dl, 13               ; CR
     int 21h
-    mov dl, 10               ; Line feed
+    mov dl, 10               ; LF
     int 21h
     
+    ; Update buffer position (skip CR/LF if present)
+    inc bx                   ; Skip the null we just added
+    mov buffer_pos, bx
+    cmp bx, bytes_read
+    jae exit_program         ; If we've reached the end, exit
+    
+    ; Check for CR/LF sequence
+    mov al, [buffer+bx]
+    cmp al, 13               ; Check for CR
+    jne check_lf
+    inc bx
+    mov buffer_pos, bx
+    
+check_lf:
+    cmp bx, bytes_read
+    jae exit_program
+    mov al, [buffer+bx]
+    cmp al, 10               ; Check for LF
+    jne process_next_line
+    inc bx
+    mov buffer_pos, bx
+    
+    ; Process next line
+    jmp process_next_line
+
+
+exit_program:  
     ; Exit
     mov ah, 4Ch
     int 21h
@@ -63,23 +121,23 @@ next_pos:
     mov si, bx                ; SI = current position
     lea di, substring         ; DI = start of substring
     mov cl, substring_len     ; CL = substring length
-    jcxz end_count            ; If substring is empty, finish
+    jcxz end_count
+    xor ch, ch                ; If substring is empty, finish
     
 compare_loop:
     mov dl, [si]              ; Get character from main string
     cmp dl, 0                 ; Check for end of string
     je end_count
-    cmp dl, 13                ; Check for carriage return
-    je end_count
-    
+
     cmpsb                     ; Compare bytes at DS:SI and ES:DI, increment both
     jne no_match              ; If not equal, no match
     loop compare_loop         ; Continue comparing
     
     ; If all characters matched
     inc ax                    ; Increment counter
-    dec si                    ; Adjust SI (because cmpsb incremented it)
-    mov bx, si                ; Move to next position
+    mov cl, substring_len     ; Calculate new position
+    xor ch, ch                ; Clear high byte
+    add bx, cx                ; Skip the entire substring (non-overlapping)
     jmp next_pos
     
 no_match:
