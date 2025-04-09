@@ -13,7 +13,10 @@
     buffer_pos      DW 0           ; Result: number of occurrences
     line_number     DW 0 
 
-    space           DB " ", 0 
+    ; Arrays to store results before sorting
+    occurrences     DW 100 DUP(0)  ; Array to store counts of occurrences
+    line_numbers    DW 100 DUP(0)  ; Array to store line numbers
+    result_count    DW 0           ; Count of results
 
 .CODE
 start:
@@ -32,13 +35,14 @@ start:
     ; Initialize buffer position
     mov buffer_pos, 0
     mov line_number, 0
+    mov result_count, 0
     
     ; Process each line in the buffer
 process_next_line:
     ; Check if we've processed the entire buffer
     mov bx, buffer_pos
     cmp bx, bytes_read
-    jae exit_program
+    jae sort_results
     
     ; Find the start of current line
     lea si, buffer
@@ -66,27 +70,18 @@ found_eol:
     
     ; Process this line
     mov si, di               ; SI = start of line
+    push bx
     call count_occurrences
+    pop bx
     
-    ; Print the result
-    call print_num
+    ; Store the results in arrays
+    mov si, result_count
+    shl si, 1                ; Multiply by 2 for word size
+    mov occurrences[si], ax  ; Store occurrence count
+    mov dx, line_number      ; DX = line number
+    mov line_numbers[si], dx ; Store line number
+    inc result_count         ; Increment result counter
 
-    ; Print a space
-    mov ah, 02h
-    mov dl, ' '              ; Space character
-    int 21h
-    
-    ; Print the line number
-    mov ax, line_number
-    call print_num
-    
-    
-    ; Print a new line after each count
-    mov ah, 02h
-    mov dl, 13               ; CR
-    int 21h
-    mov dl, 10               ; LF
-    int 21h
     
     inc line_number 
 
@@ -95,7 +90,7 @@ found_eol:
     inc bx                   ; Skip the null we just added
     mov buffer_pos, bx
     cmp bx, bytes_read
-    jae exit_program         ; If we've reached the end, exit
+    jae sort_results         ; If we've reached the end, exit
     
     ; Check for CR/LF sequence
     mov al, [buffer+bx]
@@ -106,7 +101,7 @@ found_eol:
     
 check_lf:
     cmp bx, bytes_read
-    jae exit_program
+    jae sort_results
     mov al, [buffer+bx]
     cmp al, 10               ; Check for LF
     jne process_next_line
@@ -116,6 +111,83 @@ check_lf:
     ; Process next line
     jmp process_next_line
 
+    ; Sort results using bubble sort (from least to most occurrences)
+sort_results:
+    mov cx, result_count
+    dec cx                  ; N-1 passes
+    jcxz print_results      ; If only 0 or 1 result, no need to sort
+
+outer_loop:
+    push cx                 ; Save outer loop counter
+    mov si, 0               ; Initialize inner loop index
+    
+inner_loop:
+    mov bx, si
+    shl bx, 1               ; Convert to word index
+    mov ax, occurrences[bx] ; Get current occurrence
+    
+    mov di, si
+    inc di
+    shl di, 1               ; Convert to word index
+    mov cx, occurrences[di] ; Get next occurrence
+    
+    ; Compare current with next
+    cmp ax, cx
+    jle no_swap             ; If current <= next, no swap needed
+    
+    ; Swap occurrences
+    mov occurrences[bx], cx
+    mov occurrences[di], ax
+    
+    ; Swap line numbers
+    mov ax, line_numbers[bx]
+    mov cx, line_numbers[di]
+    mov line_numbers[bx], cx
+    mov line_numbers[di], ax
+    
+no_swap:
+    inc si                  ; Next element
+    mov dx, result_count
+    dec dx
+    cmp si, dx              ; Check if we reached the end
+    jl inner_loop           ; If not, continue inner loop
+    
+    pop cx                  ; Restore outer loop counter
+    loop outer_loop         ; Continue outer loop
+
+print_results:
+    ; Print the sorted results
+    mov cx, result_count    ; Number of results
+    mov si, 0               ; Start at the first result
+    
+print_loop:
+    mov bx, si
+    shl bx, 1               ; Convert to word index
+    
+    ; Print occurrence count
+    mov ax, occurrences[bx]
+    call print_num
+    
+    ; Print space
+    mov ah, 02h
+    mov dl, ' '
+    int 21h
+    
+    ; Print line number
+    mov ax, line_numbers[bx]
+    call print_num
+    
+    ; Print new line
+    mov ah, 02h
+    mov dl, 13              ; CR
+    int 21h
+    mov dl, 10              ; LF
+    int 21h
+    
+    ; Move to next result
+    inc si
+    cmp si, cx
+    jl print_loop
 
 exit_program:  
     ; Exit
@@ -138,7 +210,8 @@ next_pos:
     mov si, bx                ; SI = current position
     lea di, substring         ; DI = start of substring
     mov cl, substring_len     ; CL = substring length
-    jcxz end_count
+    cmp cl, 0
+    je end_count
     xor ch, ch                ; If substring is empty, finish
     
 compare_loop:
